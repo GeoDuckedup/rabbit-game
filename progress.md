@@ -144,3 +144,14 @@ Original prompt: make a nes style contra style game with a rabbit holding granad
 - HUD position tweak: moved right stack to near top-right (`MULT y=18`, `COMBO y=60`).
 - Main menu text layout fix: shortened control/tip lines, shifted right column, and reduced menu column font size to prevent overflow/overlap (including swipe/boss overlap).
 - Boss HUD fix: moved/resized boss health bar to top-center gap (`x=376,y=18,w=340,h=20`) and adjusted title text so it no longer overlaps left HUD or right mult/combo stack.
+- Added simplified touch control mode (while preserving current keyboard controls):
+  - Main menu now includes bottom-right touch button text: `TAP FOR TOUCH CONTROLS`.
+  - Tapping that menu button starts a run in touch scheme.
+  - Touch scheme movement: pointer/touch drag drives only rabbit movement.
+  - Touch scheme attacks: auto-fire loop continuously triggers primary fire (grenade when ammo, machete swipe when empty).
+  - Touch Fury activation: tapping the Fury bar hit area triggers Fury activation.
+  - Touch upgrade flow: in upgrade mode, tapping an upgrade card picks it and advances level.
+  - Touch restart flow: in game-over mode while on touch scheme, tapping restarts.
+- Added pointer event handling (`pointerdown/move/up/cancel`) and touch-state tracking.
+- Added control scheme + touch state into `render_game_to_text()` for testing visibility.
+- Touch testing improvement: added mouse simulation for touch mode. Starting touch mode via mouse click now enables mouse-driven touch emulation (move cursor to move rabbit, click Fury bar to activate Fury).

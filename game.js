@@ -155,6 +155,11 @@
     OVER: "over",
   };
 
+  const CONTROL_SCHEMES = {
+    KEYBOARD: "keyboard",
+    TOUCH: "touch",
+  };
+
   const INPUT_BINDINGS = {
     moveLeft: ["ArrowLeft", "KeyA"],
     moveRight: ["ArrowRight", "KeyD"],
@@ -241,10 +246,21 @@
     },
   };
 
+  const TOUCH_UI = {
+    startButton: { x: 632, y: 492, w: 304, h: 34 },
+    furyBarHit: { x: 198, y: 98, w: 146, h: 26 },
+    upgradeCardStartX: 164,
+    upgradeCardY: 210,
+    upgradeCardW: 198,
+    upgradeCardH: 176,
+    upgradeCardGap: 218,
+  };
+
   const keysDown = new Set();
 
   const state = {
     mode: MODES.START,
+    controlScheme: CONTROL_SCHEMES.KEYBOARD,
     time: 0,
     level: 1,
     levelKillCount: 0,
@@ -290,6 +306,15 @@
     splatterPool: [],
     explosionPool: [],
     popupPool: [],
+    touch: {
+      active: false,
+      pointerId: null,
+      mouseSim: false,
+      x: VIEW_W * 0.5,
+      y: VIEW_H * 0.72,
+      autoFireTimer: 0,
+      autoFireInterval: 0.17,
+    },
   };
 
   const ELITE_TRAITS = [
@@ -440,6 +465,51 @@
     return !!keys && keys.indexOf(code) >= 0;
   }
 
+  function isPointInRect(x, y, rect) {
+    return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+  }
+
+  function isTouchControls() {
+    return state.controlScheme === CONTROL_SCHEMES.TOUCH;
+  }
+
+  function resetTouchPointer() {
+    state.touch.active = false;
+    state.touch.pointerId = null;
+  }
+
+  function setControlScheme(nextScheme) {
+    state.controlScheme = nextScheme;
+    if (nextScheme !== CONTROL_SCHEMES.TOUCH) {
+      state.touch.mouseSim = false;
+    }
+    resetTouchPointer();
+    state.touch.autoFireTimer = 0;
+  }
+
+  function pointInTouchStartButton(x, y) {
+    return isPointInRect(x, y, TOUCH_UI.startButton);
+  }
+
+  function pointInFuryBar(x, y) {
+    return isPointInRect(x, y, TOUCH_UI.furyBarHit);
+  }
+
+  function getUpgradeCardIndexAtPoint(x, y) {
+    for (let i = 0; i < state.upgradeChoices.length; i += 1) {
+      const rect = {
+        x: TOUCH_UI.upgradeCardStartX + i * TOUCH_UI.upgradeCardGap,
+        y: TOUCH_UI.upgradeCardY,
+        w: TOUCH_UI.upgradeCardW,
+        h: TOUCH_UI.upgradeCardH,
+      };
+      if (isPointInRect(x, y, rect)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   function anyDown(action) {
     const keys = INPUT_BINDINGS[action];
     if (!keys) {
@@ -466,6 +536,9 @@
     }
     state.mode = nextMode;
     keysDown.clear();
+    if (nextMode !== MODES.PLAYING) {
+      resetTouchPointer();
+    }
   }
 
   /**
@@ -579,6 +652,8 @@
     state.pigs.length = 0;
     state.carrots.length = 0;
     clearTransientCombatState({ keepPopups: true });
+    resetTouchPointer();
+    state.touch.autoFireTimer = 0;
 
     const p = state.player;
     p.vx = 0;
@@ -932,6 +1007,8 @@
     recycleAll(state.explosions, state.explosionPool);
     recycleAll(state.splatters, state.splatterPool);
     recycleAll(state.popups, state.popupPool);
+    resetTouchPointer();
+    state.touch.autoFireTimer = 0;
     resetPlayer();
     startThreatLevel(1, false);
   }
@@ -965,11 +1042,13 @@
     keysDown.add(code);
 
     if (state.mode === MODES.START && isActionPress(event, "start")) {
+      setControlScheme(CONTROL_SCHEMES.KEYBOARD);
       hardReset();
       event.preventDefault();
       return;
     }
     if (state.mode === MODES.OVER && isActionPress(event, "restart")) {
+      setControlScheme(CONTROL_SCHEMES.KEYBOARD);
       hardReset();
       event.preventDefault();
       return;
@@ -1017,6 +1096,137 @@
 
   window.addEventListener("keyup", (event) => {
     keysDown.delete(event.code);
+  });
+
+  function handlePointerDown(event) {
+    const x = event.offsetX;
+    const y = event.offsetY;
+
+    if (state.mode === MODES.START) {
+      if (pointInTouchStartButton(x, y)) {
+        setControlScheme(CONTROL_SCHEMES.TOUCH);
+        state.touch.mouseSim = event.pointerType === "mouse";
+        hardReset();
+        return true;
+      }
+      return false;
+    }
+
+    if (state.mode === MODES.OVER) {
+      if (isTouchControls()) {
+        hardReset();
+        return true;
+      }
+      return false;
+    }
+
+    if (state.mode === MODES.UPGRADE) {
+      if (!isTouchControls()) {
+        return false;
+      }
+      const pickIndex = getUpgradeCardIndexAtPoint(x, y);
+      if (pickIndex >= 0 && state.upgradeChoices[pickIndex]) {
+        applyUpgradeChoice(state.upgradeChoices[pickIndex]);
+        startThreatLevel(state.level + 1, true);
+        return true;
+      }
+      return false;
+    }
+
+    if (!isTouchControls() || state.mode !== MODES.PLAYING) {
+      return false;
+    }
+
+    if (pointInFuryBar(x, y)) {
+      activateFury();
+      return true;
+    }
+
+    if (state.touch.mouseSim && event.pointerType === "mouse") {
+      state.touch.active = true;
+      state.touch.x = x;
+      state.touch.y = y;
+      return true;
+    }
+
+    state.touch.active = true;
+    state.touch.pointerId = event.pointerId;
+    state.touch.x = x;
+    state.touch.y = y;
+    return true;
+  }
+
+  function handlePointerMove(event) {
+    if (!isTouchControls() || state.mode !== MODES.PLAYING) {
+      return false;
+    }
+    if (state.touch.mouseSim && event.pointerType === "mouse") {
+      state.touch.active = true;
+      state.touch.x = event.offsetX;
+      state.touch.y = event.offsetY;
+      return true;
+    }
+    if (!state.touch.active || state.touch.pointerId !== event.pointerId) {
+      return false;
+    }
+    state.touch.x = event.offsetX;
+    state.touch.y = event.offsetY;
+    return true;
+  }
+
+  function handlePointerUp(event) {
+    if (!isTouchControls()) {
+      return false;
+    }
+    if (state.touch.mouseSim && event.pointerType === "mouse") {
+      return true;
+    }
+    if (state.touch.active && state.touch.pointerId === event.pointerId) {
+      resetTouchPointer();
+      return true;
+    }
+    return false;
+  }
+
+  canvas.style.touchAction = "none";
+  canvas.addEventListener("pointerdown", (event) => {
+    const handled = handlePointerDown(event);
+    if (handled) {
+      if (canvas.setPointerCapture) {
+        try {
+          canvas.setPointerCapture(event.pointerId);
+        } catch (_err) {
+          // Ignore unsupported capture paths.
+        }
+      }
+      event.preventDefault();
+    }
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    if (handlePointerMove(event)) {
+      event.preventDefault();
+    }
+  });
+
+  canvas.addEventListener("pointerup", (event) => {
+    const handled = handlePointerUp(event);
+    if (handled) {
+      if (canvas.releasePointerCapture) {
+        try {
+          canvas.releasePointerCapture(event.pointerId);
+        } catch (_err) {
+          // Ignore unsupported release paths.
+        }
+      }
+      event.preventDefault();
+    }
+  });
+
+  canvas.addEventListener("pointercancel", (event) => {
+    if (handlePointerUp(event)) {
+      event.preventDefault();
+    }
   });
 
   function tryPrimaryFire() {
@@ -1347,13 +1557,25 @@
 
   function updatePlayer(dt) {
     const p = state.player;
-    const moveLeft = anyDown("moveLeft");
-    const moveRight = anyDown("moveRight");
-    const moveUp = anyDown("moveUp");
-    const moveDown = anyDown("moveDown");
-
-    const axisX = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
-    const axisZ = (moveDown ? 1 : 0) - (moveUp ? 1 : 0);
+    let axisX = 0;
+    let axisZ = 0;
+    if (isTouchControls()) {
+      if (state.touch.active) {
+        const projected = projectToScreen(p.x, p.z, p.height);
+        const dx = state.touch.x - projected.x;
+        const dz = state.touch.y - projected.groundY;
+        const deadZone = 14;
+        axisX = Math.abs(dx) > deadZone ? clamp(dx / 90, -1, 1) : 0;
+        axisZ = Math.abs(dz) > deadZone ? clamp(dz / 68, -1, 1) : 0;
+      }
+    } else {
+      const moveLeft = anyDown("moveLeft");
+      const moveRight = anyDown("moveRight");
+      const moveUp = anyDown("moveUp");
+      const moveDown = anyDown("moveDown");
+      axisX = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
+      axisZ = (moveDown ? 1 : 0) - (moveUp ? 1 : 0);
+    }
 
     if (axisX !== 0 || axisZ !== 0) {
       p.facingX = axisX;
@@ -1428,6 +1650,42 @@
       state.combo = 0;
       state.comboMult = 1;
     }
+  }
+
+  function aimPlayerAtNearestPig() {
+    const p = state.player;
+    let target = null;
+    let best = Infinity;
+    for (const pig of state.pigs) {
+      const dist = arenaDistance(p, pig);
+      if (dist < best) {
+        best = dist;
+        target = pig;
+      }
+    }
+    if (!target) {
+      return false;
+    }
+    const aim = normalize2(target.x - p.x, target.z - p.z, 760);
+    p.facingX = aim.x;
+    p.facingZ = aim.z;
+    return true;
+  }
+
+  function updateTouchAutoFire(dt) {
+    if (!isTouchControls() || state.mode !== MODES.PLAYING) {
+      return;
+    }
+    state.touch.autoFireTimer -= dt;
+    if (state.touch.autoFireTimer > 0) {
+      return;
+    }
+    if (!aimPlayerAtNearestPig()) {
+      state.touch.autoFireTimer = 0.08;
+      return;
+    }
+    tryPrimaryFire();
+    state.touch.autoFireTimer = state.furyActive ? 0.09 : state.touch.autoFireInterval;
   }
 
   function updateGrenades(dt) {
@@ -1773,6 +2031,7 @@
 
   function updatePlayingMode(step) {
     updatePlayer(step);
+    updateTouchAutoFire(step);
     updateSpawns(step);
     updateGrenades(step);
     updatePigs(step);
@@ -2386,6 +2645,16 @@
     ctx.fillStyle = UI_THEME.menu.ctaText;
     ctx.font = UI_THEME.fonts.header;
     ctx.fillText("PRESS ENTER TO START", 274, 437);
+
+    const touchBtn = TOUCH_UI.startButton;
+    ctx.fillStyle = "rgba(26, 42, 22, 0.88)";
+    ctx.fillRect(touchBtn.x, touchBtn.y, touchBtn.w, touchBtn.h);
+    ctx.strokeStyle = "#9ce89f";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(touchBtn.x, touchBtn.y, touchBtn.w, touchBtn.h);
+    ctx.fillStyle = "#d7ffcf";
+    ctx.font = "bold 18px monospace";
+    ctx.fillText("tap for touch controls", touchBtn.x + 18, touchBtn.y + 23);
   }
 
   function drawEndScreen(text, subText, accent) {
@@ -2584,6 +2853,7 @@
     const boss = getBossPig();
     const payload = {
       mode: state.mode,
+      controlScheme: state.controlScheme,
       coordinateSystem:
         "x in arena pixels left-right; z is depth lane (0 far to 1 near); height is jump height above floor in pixels; screen origin top-left",
       arena: {
@@ -2695,6 +2965,12 @@
         id: choice.id,
         label: choice.label,
       })),
+      touch: {
+        active: state.touch.active,
+        x: Math.round(state.touch.x),
+        y: Math.round(state.touch.y),
+        autoFireTimer: Number(state.touch.autoFireTimer.toFixed(2)),
+      },
     };
     return JSON.stringify(payload);
   }
