@@ -161,3 +161,7 @@ Original prompt: make a nes style contra style game with a rabbit holding granad
 - Added input compatibility fallback for browsers without Pointer Events:
   - `mousedown/mousemove/mouseup` + `touchstart/move/end/cancel` now route through shared handlers.
 - Touch autofire cadence tweak: slowed by ~2x (`autoFireInterval 0.17 -> 0.34`, Fury interval `0.09 -> 0.18`).
+- Touch Fury UX change:
+  - In touch control scheme, Fury is now activated via a dedicated bottom-right button (`TOUCH_UI.furyButton`) instead of tapping the HUD Fury bar.
+  - The touch Fury button only appears when Fury is ready (`furyMeter >= furyMax` and not already active).
+  - The button is rendered only while touch mode is active.

@@ -248,7 +248,7 @@
 
   const TOUCH_UI = {
     startButton: { x: 632, y: 492, w: 304, h: 34 },
-    furyBarHit: { x: 198, y: 98, w: 146, h: 26 },
+    furyButton: { x: 758, y: 466, w: 186, h: 56 },
     upgradeCardStartX: 164,
     upgradeCardY: 210,
     upgradeCardW: 198,
@@ -505,8 +505,17 @@
     return clientToCanvas(event.clientX, event.clientY);
   }
 
-  function pointInFuryBar(x, y) {
-    return isPointInRect(x, y, TOUCH_UI.furyBarHit);
+  function isTouchFuryButtonVisible() {
+    return (
+      isTouchControls() &&
+      state.mode === MODES.PLAYING &&
+      !state.furyActive &&
+      state.furyMeter >= state.furyMax
+    );
+  }
+
+  function pointInTouchFuryButton(x, y) {
+    return isPointInRect(x, y, TOUCH_UI.furyButton);
   }
 
   function getUpgradeCardIndexAtPoint(x, y) {
@@ -1154,7 +1163,7 @@
       return false;
     }
 
-    if (pointInFuryBar(x, y)) {
+    if (isTouchFuryButtonVisible() && pointInTouchFuryButton(x, y)) {
       activateFury();
       return true;
     }
@@ -2931,6 +2940,26 @@
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   }
 
+  function drawTouchFuryButton() {
+    if (!isTouchFuryButtonVisible()) {
+      return;
+    }
+    const btn = TOUCH_UI.furyButton;
+    const pulse = 0.28 + Math.sin(state.time * 10) * 0.14;
+    ctx.fillStyle = "rgba(24, 58, 20, 0.9)";
+    ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
+    ctx.strokeStyle = "#9dff78";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(btn.x, btn.y, btn.w, btn.h);
+    ctx.fillStyle = `rgba(184, 255, 132, ${pulse})`;
+    ctx.fillRect(btn.x + 3, btn.y + 3, btn.w - 6, btn.h - 6);
+    ctx.fillStyle = "#15320f";
+    ctx.font = "bold 26px monospace";
+    ctx.fillText("FURY", btn.x + 58, btn.y + 36);
+    ctx.font = "bold 12px monospace";
+    ctx.fillText("TAP", btn.x + 74, btn.y + 50);
+  }
+
   function drawModeOverlay() {
     if (state.mode === MODES.OVER) {
       drawEndScreen("RABBIT DOWN", "Even a hard rabbit needs carrots.", "#ffb33a");
@@ -2953,6 +2982,7 @@
     drawBlastFlashOverlay();
     drawMeleeFlashOverlay();
     drawHud();
+    drawTouchFuryButton();
     drawFuryVignette();
     drawModeOverlay();
   }
@@ -3079,6 +3109,7 @@
         x: Math.round(state.touch.x),
         y: Math.round(state.touch.y),
         autoFireTimer: Number(state.touch.autoFireTimer.toFixed(2)),
+        furyButtonVisible: isTouchFuryButtonVisible(),
       },
     };
     return JSON.stringify(payload);
