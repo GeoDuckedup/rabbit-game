@@ -1,0 +1,146 @@
+Original prompt: make a nes style contra style game with a rabbit holding granade launcher eating carrots, killing pigs and taking no crap from anyone
+
+- Created initial project scaffold in `rabbit-contra` with `index.html` and `game.js`.
+- Implemented core game loop and states: `start`, `playing`, and `over`.
+- Added rabbit commando with movement, jump, grenade launcher, ammo, health, invulnerability frames, and fullscreen toggle.
+- Added pigs as hostile enemies, explosive grenade damage, carrot pickups for healing/ammo, score and kills HUD.
+- Exposed deterministic hooks required by skill:
+  - `window.render_game_to_text()`
+  - `window.advanceTime(ms)`
+- Next: run Playwright client script, inspect screenshots/text output, and fix gameplay or visual issues.
+- Smoke test: verified HTTP serving of `/index.html` with `python3 -m http.server` (HTTP 200).
+- Blocker: Playwright skill client could not run because `node`/`npx` are not installed in this environment.
+- TODO (next agent): install Node/npm to run `$WEB_GAME_CLIENT`, inspect screenshots, and validate controls with scripted input bursts.
+- Reworked game into a one-screen arena shooter (removed side-scrolling camera/world).
+- Added pseudo-3D presentation with perspective floor/grid and depth-based sprite scaling.
+- Updated movement to arena controls (`WASD`/arrows for x+depth movement) with `SPACE` bunny-hop.
+- Retuned enemies: fewer pigs on screen at once, pig AI now uses frequent jump/hop attacks.
+- Retuned grenades: higher arc, multiple floor/wall bounces, delayed fuse, chain-explosion behavior.
+- Added combo scoring to reward rapid pig eliminations.
+- Updated `render_game_to_text()` payload to include arena depth (`z`) and jump `height` state.
+- Validation blocker remains: `node`/`npx` missing, so Playwright skill loop still cannot run in this environment.
+- Added pig archetypes with varied behavior/stats: scout, pogo, bruiser, and tank pigs.
+- Added a large boss encounter (`Boss Hog Supreme`) that spawns after kill threshold and uses its own health bar and intro banner.
+- Implemented boss victory state (`win`) and updated end-screen flow.
+- Added grenade-hit green splatter FX system:
+  - splatter particles emit whenever pigs take grenade explosion damage
+  - larger/more intense splatter bursts for boss and kill events
+  - particle physics with bounce/fade and depth-sorted rendering
+- Extended `render_game_to_text()` with pig types, boss state, and splatter count.
+- Implemented requested arcade pass (first 5 improvements):
+  - Added hit-stop + stronger impact handling (`hitStop`, stronger shake/recoil, impact helper).
+  - Added deeper combo/chain scoring with score multiplier and per-explosion chain tracking.
+  - Added trick-shot bonuses: ricochet kills, air kills, fury-shot bonus popups.
+  - Added boss phase system (phase escalations, stomp shockwaves, reinforcement summons, phase banners).
+  - Added Carrot Fury mode (meter, activation key, timer, boosted movement/fire/explosions, HUD/banner updates).
+- Added floating combat popups for bonuses and score gain.
+- Extended `render_game_to_text()` with combo multiplier, hit-stop, fury state, and boss phase.
+- Visual polish pass focused on impact + clarity while keeping the simple arcade look:
+  - Added sprite readability polish: darker outlines on rabbit/pigs/carrot/grenades.
+  - Added depth readability polish: subtle depth-based tint overlay so far-lane entities read consistently.
+  - Upgraded explosion visuals with ground shockwave rings and screen flash pulses.
+  - Improved jump readability by making shadows react to entity height.
+  - Upgraded Fury visuals: aura sparkles, Fury-tinted grenade/explosion colors, Fury vignette pulse.
+  - Reworked HUD hierarchy for clearer at-a-glance reading (larger score, clearer bars, cleaner labels).
+- Improved main menu layout for readability and style while keeping the existing visual language:
+  - cleaner header block, two-column controls/tips, stronger start CTA bar.
+- Implemented same-key fallback attack flow:
+  - fire input now branches to grenade when ammo > 0, otherwise to close-range melee swipe.
+  - no new attack key added.
+- Added melee combat loop:
+  - startup + active + recovery timing (higher-risk committed attack)
+  - short forward lunge on swipe
+  - directional arc hit test (front-facing)
+  - melee hit impact feedback (hit-stop + shake + popup)
+- Added melee kill reward:
+  - melee kills now spawn a carrot near the defeated pig
+  - added short carrot-drop cooldown + carrot-count cap to prevent floods
+- Added readability updates for the mechanic:
+  - HUD dry-ammo state (`OUT - FIRE = SWIPE`)
+  - rabbit swipe trail visual during melee
+  - start menu copy now explains same-key fallback (grenade when loaded, swipe when empty)
+- Extended text state payload with melee timing info and melee carrot cooldown for testing.
+- Tuned melee fallback to feel more like a long machete swipe:
+  - increased slash range and widened forward arc.
+  - increased lunge distance and impact strength.
+  - upgraded swipe VFX to a longer dual-arc blade trail.
+  - added a short melee action flash burst around the slash.
+  - renamed hit popup from `SWIPE` to `MACHETE` for clarity.
+- Further widened machete swing:
+  - increased melee arc coverage substantially (lower dot threshold).
+  - slightly increased swipe reach.
+  - widened slash trail and action-flash arc spans.
+- Tripled melee reach per request (`slashRange` increased from 152 to 456).
+- Doubled melee slash visuals per request:
+  - doubled trail ellipse sizes/offsets.
+  - doubled action-flash ellipse size/offset.
+- Reduced melee damage reach by ~1.5x to better match enlarged swipe visuals (`slashRange` 456 -> 304).
+
+- Tweaked start resources/menu copy:
+  - Halved starting grenade ammo from 10 to 5 (`resetPlayer`).
+  - Verified main menu no longer includes "no-crap arena" subtitle text.
+
+- Added Fury carrot magnet behavior in `updateCarrots`:
+  - During active Fury, carrots within range are pulled toward the rabbit.
+  - Pull strength ramps up as carrots get closer and stays clamped to arena bounds.
+
+- Refined Fury carrot magnet behavior:
+  - Removed range gating so all carrots gravitate during Fury.
+  - Fixed pull vector integration so z-axis movement matches x-axis direction (true homing toward player).
+
+- Implemented endless Threat Level progression (top-5 request set):
+  - Removed boss victory end-state flow; boss kill now opens an between-level upgrade draft.
+  - Added `state.level` + `state.levelKillCount`; after choosing an upgrade, the run advances to `level + 1` and continues.
+- Added difficulty scaling curves per level:
+  - Dynamic tuning for `maxPigs`, boss spawn threshold, pig speed multiplier, and aggression multiplier.
+  - Spawn cadence now scales with aggression so higher levels spawn faster and feel meaner.
+- Added elite pig traits:
+  - New traits: Blitz, Armored, Rabid, Stalker, Volatile.
+  - Traits alter pig behavior/stats and are applied by level-based elite chance.
+  - Elite pigs are visually marked with a trait-colored frame/marker.
+  - Volatile elites explode on death.
+- Added between-level upgrade draft (1 of 3 choices):
+  - New upgrade screen (`mode: "upgrade"`) with key picks `1/2/3` (or Enter for first).
+  - Upgrades include grenade blast boosts, ammo, health, movement, fury gain, melee scaling.
+- Added boss phase growth by level:
+  - Boss phase thresholds now generated dynamically with more thresholds at higher levels.
+  - Bosses become multi-phase longer at later threat levels.
+- Updated HUD/start text and text-state output:
+  - HUD now shows Threat Level and per-wave boss progress (`WAVE kills/threshold`).
+  - Start tips mention upgrade picks after boss clears.
+  - `render_game_to_text()` now includes level/difficulty/upgrade-related state.
+- Validation:
+  - Quick local serve smoke check passed (`HTTP/1.0 200 OK`).
+  - Playwright skill loop still blocked in this environment because `node`/`npx` are unavailable.
+- Safety fix: `updatePigs` now early-returns when mode changes out of playing during a kill, preventing post-transition iteration on cleared pig arrays.
+
+- Polish pass (execute top 5): mode/input/perf/visual/code-quality refinements with no core mechanic changes.
+- Mode-transition hardening:
+  - Added centralized `transitionToMode()` and routed state changes through it.
+  - Added `clearTransientCombatState()` so level/mode transitions consistently clear transient combat state and avoid stale key/input carryover.
+- Particle/perf optimization:
+  - Added object pools for high-churn effects (`explosionPool`, `splatterPool`, `popupPool`).
+  - Reworked popup/splatter/explosion creation to reuse pooled objects.
+  - Replaced splice-removal in effect updates with recycle-on-remove helpers.
+- Input reliability cleanup:
+  - Added action bindings + helpers (`keyMatches`, `anyDown`, `isActionPress`).
+  - Action inputs are now edge-triggered (`!event.repeat`) while movement remains held-state.
+  - Upgrade picking now ignores key-repeat to prevent accidental multi-select.
+- Visual consistency pass:
+  - Added `UI_THEME` tokens for HUD/menu/upgrade colors and typography.
+  - Updated HUD/start/upgrade rendering to use shared theme tokens for cleaner consistency.
+- Code quality sweep:
+  - Split large HUD/render/update paths into smaller helpers (`drawHud*`, `drawWorldScene`, `drawBlastFlashOverlay`, `updatePlayingMode`, `updateInactiveMode`, etc.).
+  - Added succinct JSDoc comments on transition/pool helpers.
+- Validation:
+  - Quick local serve smoke check passed (`HTTP/1.0 200 OK`).
+  - Playwright loop still blocked due missing `node`/`npx` in this environment.
+- HUD layout tweak:
+  - Moved multiplier HUD to middle-right (`drawHudMultiplierBadge`, x=730 y=234).
+  - Moved combo HUD directly under multiplier (`drawHudComboBadge`, x=730 y=276).
+  - Mult/combo now render as a right-side stacked pair.
+- HUD stack position tweak: raised right-side multiplier/combo badges upward (`MULT y=154`, `COMBO y=196`) to upper-middle-right above mountain line.
+- HUD cleanup/tweak: removed carrot counter text from HUD stats; raised right stack higher (`MULT y=74`, `COMBO y=116`).
+- HUD position tweak: moved right stack to near top-right (`MULT y=18`, `COMBO y=60`).
+- Main menu text layout fix: shortened control/tip lines, shifted right column, and reduced menu column font size to prevent overflow/overlap (including swipe/boss overlap).
+- Boss HUD fix: moved/resized boss health bar to top-center gap (`x=376,y=18,w=340,h=20`) and adjusted title text so it no longer overlaps left HUD or right mult/combo stack.

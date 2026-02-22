@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rabbit Commando: No-Crap Run</title>
+    <style>
+      :root {
+        --frame: #1f2a44;
+        --bezel: #101726;
+        --screen: #0a1020;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: radial-gradient(circle at center, #20355e 0%, #0b1120 65%, #030611 100%);
+        font-family: "Courier New", monospace;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+      }
+
+      .cabinet {
+        padding: 14px;
+        border-radius: 12px;
+        background: linear-gradient(145deg, var(--frame), var(--bezel));
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+      }
+
+      canvas {
+        display: block;
+        width: min(96vw, 1280px);
+        height: auto;
+        aspect-ratio: 16 / 9;
+        border: 5px solid #2e3f67;
+        background: var(--screen);
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="cabinet">
+      <canvas id="game" width="960" height="540" aria-label="Rabbit commando game"></canvas>
+    </div>
+    <script src="./game.js"></script>
+  </body>
+</html>
