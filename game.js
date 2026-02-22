@@ -313,7 +313,7 @@
       x: VIEW_W * 0.5,
       y: VIEW_H * 0.72,
       autoFireTimer: 0,
-      autoFireInterval: 0.17,
+      autoFireInterval: 0.34,
     },
   };
 
@@ -489,6 +489,20 @@
 
   function pointInTouchStartButton(x, y) {
     return isPointInRect(x, y, TOUCH_UI.startButton);
+  }
+
+  function clientToCanvas(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = VIEW_W / rect.width;
+    const scaleY = VIEW_H / rect.height;
+    return {
+      x: clamp((clientX - rect.left) * scaleX, 0, VIEW_W),
+      y: clamp((clientY - rect.top) * scaleY, 0, VIEW_H),
+    };
+  }
+
+  function getEventCanvasPoint(event) {
+    return clientToCanvas(event.clientX, event.clientY);
   }
 
   function pointInFuryBar(x, y) {
@@ -1099,13 +1113,16 @@
   });
 
   function handlePointerDown(event) {
-    const x = event.offsetX;
-    const y = event.offsetY;
+    const pointerType = event.pointerType || "mouse";
+    const pointerId = event.pointerId != null ? event.pointerId : 1;
+    const point = getEventCanvasPoint(event);
+    const x = point.x;
+    const y = point.y;
 
     if (state.mode === MODES.START) {
       if (pointInTouchStartButton(x, y)) {
         setControlScheme(CONTROL_SCHEMES.TOUCH);
-        state.touch.mouseSim = event.pointerType === "mouse";
+        state.touch.mouseSim = pointerType === "mouse";
         hardReset();
         return true;
       }
@@ -1142,7 +1159,7 @@
       return true;
     }
 
-    if (state.touch.mouseSim && event.pointerType === "mouse") {
+    if (state.touch.mouseSim && pointerType === "mouse") {
       state.touch.active = true;
       state.touch.x = x;
       state.touch.y = y;
@@ -1150,7 +1167,7 @@
     }
 
     state.touch.active = true;
-    state.touch.pointerId = event.pointerId;
+    state.touch.pointerId = pointerId;
     state.touch.x = x;
     state.touch.y = y;
     return true;
@@ -1160,17 +1177,20 @@
     if (!isTouchControls() || state.mode !== MODES.PLAYING) {
       return false;
     }
-    if (state.touch.mouseSim && event.pointerType === "mouse") {
+    const pointerType = event.pointerType || "mouse";
+    const pointerId = event.pointerId != null ? event.pointerId : 1;
+    const point = getEventCanvasPoint(event);
+    if (state.touch.mouseSim && pointerType === "mouse") {
       state.touch.active = true;
-      state.touch.x = event.offsetX;
-      state.touch.y = event.offsetY;
+      state.touch.x = point.x;
+      state.touch.y = point.y;
       return true;
     }
-    if (!state.touch.active || state.touch.pointerId !== event.pointerId) {
+    if (!state.touch.active || state.touch.pointerId !== pointerId) {
       return false;
     }
-    state.touch.x = event.offsetX;
-    state.touch.y = event.offsetY;
+    state.touch.x = point.x;
+    state.touch.y = point.y;
     return true;
   }
 
@@ -1178,10 +1198,12 @@
     if (!isTouchControls()) {
       return false;
     }
-    if (state.touch.mouseSim && event.pointerType === "mouse") {
+    const pointerType = event.pointerType || "mouse";
+    const pointerId = event.pointerId != null ? event.pointerId : 1;
+    if (state.touch.mouseSim && pointerType === "mouse") {
       return true;
     }
-    if (state.touch.active && state.touch.pointerId === event.pointerId) {
+    if (state.touch.active && state.touch.pointerId === pointerId) {
       resetTouchPointer();
       return true;
     }
@@ -1189,45 +1211,132 @@
   }
 
   canvas.style.touchAction = "none";
-  canvas.addEventListener("pointerdown", (event) => {
-    const handled = handlePointerDown(event);
-    if (handled) {
-      if (canvas.setPointerCapture) {
-        try {
-          canvas.setPointerCapture(event.pointerId);
-        } catch (_err) {
-          // Ignore unsupported capture paths.
+  if ("PointerEvent" in window) {
+    canvas.addEventListener("pointerdown", (event) => {
+      const handled = handlePointerDown(event);
+      if (handled) {
+        if (canvas.setPointerCapture && event.pointerId != null) {
+          try {
+            canvas.setPointerCapture(event.pointerId);
+          } catch (_err) {
+            // Ignore unsupported capture paths.
+          }
         }
+        event.preventDefault();
       }
-      event.preventDefault();
-    }
-  });
+    });
 
-  canvas.addEventListener("pointermove", (event) => {
-    if (handlePointerMove(event)) {
-      event.preventDefault();
-    }
-  });
+    canvas.addEventListener("pointermove", (event) => {
+      if (handlePointerMove(event)) {
+        event.preventDefault();
+      }
+    });
 
-  canvas.addEventListener("pointerup", (event) => {
-    const handled = handlePointerUp(event);
-    if (handled) {
-      if (canvas.releasePointerCapture) {
-        try {
-          canvas.releasePointerCapture(event.pointerId);
-        } catch (_err) {
-          // Ignore unsupported release paths.
+    canvas.addEventListener("pointerup", (event) => {
+      const handled = handlePointerUp(event);
+      if (handled) {
+        if (canvas.releasePointerCapture && event.pointerId != null) {
+          try {
+            canvas.releasePointerCapture(event.pointerId);
+          } catch (_err) {
+            // Ignore unsupported release paths.
+          }
         }
+        event.preventDefault();
       }
-      event.preventDefault();
-    }
-  });
+    });
 
-  canvas.addEventListener("pointercancel", (event) => {
-    if (handlePointerUp(event)) {
-      event.preventDefault();
-    }
-  });
+    canvas.addEventListener("pointercancel", (event) => {
+      if (handlePointerUp(event)) {
+        event.preventDefault();
+      }
+    });
+  } else {
+    canvas.addEventListener("mousedown", (event) => {
+      if (handlePointerDown(event)) {
+        event.preventDefault();
+      }
+    });
+    canvas.addEventListener("mousemove", (event) => {
+      if (handlePointerMove(event)) {
+        event.preventDefault();
+      }
+    });
+    window.addEventListener("mouseup", (event) => {
+      handlePointerUp(event);
+    });
+    canvas.addEventListener(
+      "touchstart",
+      (event) => {
+        let handled = false;
+        for (const touch of event.changedTouches) {
+          handled =
+            handlePointerDown({
+              clientX: touch.clientX,
+              clientY: touch.clientY,
+              pointerId: touch.identifier,
+              pointerType: "touch",
+            }) || handled;
+        }
+        if (handled) {
+          event.preventDefault();
+        }
+      },
+      { passive: false },
+    );
+    canvas.addEventListener(
+      "touchmove",
+      (event) => {
+        let handled = false;
+        for (const touch of event.changedTouches) {
+          handled =
+            handlePointerMove({
+              clientX: touch.clientX,
+              clientY: touch.clientY,
+              pointerId: touch.identifier,
+              pointerType: "touch",
+            }) || handled;
+        }
+        if (handled) {
+          event.preventDefault();
+        }
+      },
+      { passive: false },
+    );
+    canvas.addEventListener(
+      "touchend",
+      (event) => {
+        let handled = false;
+        for (const touch of event.changedTouches) {
+          handled =
+            handlePointerUp({
+              clientX: touch.clientX,
+              clientY: touch.clientY,
+              pointerId: touch.identifier,
+              pointerType: "touch",
+            }) || handled;
+        }
+        if (handled) {
+          event.preventDefault();
+        }
+      },
+      { passive: false },
+    );
+    canvas.addEventListener(
+      "touchcancel",
+      (event) => {
+        for (const touch of event.changedTouches) {
+          handlePointerUp({
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            pointerId: touch.identifier,
+            pointerType: "touch",
+          });
+        }
+      },
+      { passive: false },
+    );
+  }
 
   function tryPrimaryFire() {
     const p = state.player;
@@ -1685,7 +1794,7 @@
       return;
     }
     tryPrimaryFire();
-    state.touch.autoFireTimer = state.furyActive ? 0.09 : state.touch.autoFireInterval;
+    state.touch.autoFireTimer = state.furyActive ? 0.18 : state.touch.autoFireInterval;
   }
 
   function updateGrenades(dt) {

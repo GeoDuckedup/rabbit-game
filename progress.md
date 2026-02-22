@@ -155,3 +155,9 @@ Original prompt: make a nes style contra style game with a rabbit holding granad
 - Added pointer event handling (`pointerdown/move/up/cancel`) and touch-state tracking.
 - Added control scheme + touch state into `render_game_to_text()` for testing visibility.
 - Touch testing improvement: added mouse simulation for touch mode. Starting touch mode via mouse click now enables mouse-driven touch emulation (move cursor to move rabbit, click Fury bar to activate Fury).
+- Fixed touch/mouse hit-testing bug for scaled canvas:
+  - Replaced pointer coordinate usage from CSS-space `offsetX/offsetY` to canvas-space conversion via `clientToCanvas()`.
+  - This ensures menu touch button, fury-bar tap, and touch movement all work when canvas is resized by CSS (desktop and phone).
+- Added input compatibility fallback for browsers without Pointer Events:
+  - `mousedown/mousemove/mouseup` + `touchstart/move/end/cancel` now route through shared handlers.
+- Touch autofire cadence tweak: slowed by ~2x (`autoFireInterval 0.17 -> 0.34`, Fury interval `0.09 -> 0.18`).
